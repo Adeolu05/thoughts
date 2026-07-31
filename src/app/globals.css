@@ -1,0 +1,389 @@
+@import "tailwindcss";
+
+/* Class-based dark mode (html.dark) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Thoughts · brand system (dpeluola.com)
+  Light: soft lavender · Dark: deep violet-black
+*/
+
+:root {
+  --bg: #faf9ff;
+  --bg-elevated: #f4f2fa;
+  --bg-panel: #ffffff;
+  --fg: #0f172a;
+  --fg-muted: #475569;
+  --fg-soft: #64748b;
+  --border: rgba(15, 23, 42, 0.07);
+  --border-strong: rgba(15, 23, 42, 0.11);
+  --violet: #7c3aed;
+  --violet-soft: #a78bfa;
+  --violet-glow: rgba(124, 58, 237, 0.2);
+  --ring: #7c3aed;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 4px 16px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(124, 58, 237, 0.04);
+  --shadow-lg: 0 20px 40px -16px rgba(15, 23, 42, 0.12), 0 8px 16px -8px rgba(124, 58, 237, 0.08);
+  --shadow-glow: 0 12px 40px -8px rgba(124, 58, 237, 0.28);
+  --radius-card: 1.5rem;
+  --radius-panel: 1.75rem;
+  --mesh-1: rgba(167, 139, 250, 0.28);
+  --mesh-2: rgba(196, 181, 253, 0.14);
+  --mesh-3: rgba(221, 214, 254, 0.18);
+  --nav-bg: rgba(250, 249, 255, 0.72);
+  --dock-bg: rgba(255, 255, 255, 0.86);
+  --input-bg: #ffffff;
+  --chip-bg: #f8fafc;
+  --grain-opacity: 0.028;
+  --grain-blend: multiply;
+}
+
+.dark {
+  --bg: #0c0a14;
+  --bg-elevated: #15131f;
+  --bg-panel: #1c1930;
+  --fg: #f4f2fb;
+  --fg-muted: #c4bfd4;
+  --fg-soft: #a39cb8;
+  --border: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.17);
+  --violet: #8b5cf6;
+  --violet-soft: #c4b5fd;
+  --violet-glow: rgba(139, 92, 246, 0.35);
+  --ring: #a78bfa;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5), 0 2px 8px -2px rgba(124, 58, 237, 0.12);
+  --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.55), 0 8px 20px -8px rgba(124, 58, 237, 0.15);
+  --shadow-glow: 0 12px 40px -8px rgba(139, 92, 246, 0.4);
+  --mesh-1: rgba(109, 40, 217, 0.22);
+  --mesh-2: rgba(139, 92, 246, 0.12);
+  --mesh-3: rgba(76, 29, 149, 0.16);
+  --nav-bg: rgba(12, 10, 20, 0.78);
+  --dock-bg: rgba(28, 25, 48, 0.94);
+  --input-bg: rgba(255, 255, 255, 0.07);
+  --chip-bg: rgba(255, 255, 255, 0.09);
+  --grain-opacity: 0.045;
+  --grain-blend: soft-light;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-brand: var(--violet);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-instrument);
+  --font-display: var(--font-instrument);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100dvh;
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.625;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -25%, var(--mesh-1), transparent 55%),
+    radial-gradient(ellipse 55% 45% at 100% 5%, var(--mesh-2), transparent 50%),
+    radial-gradient(ellipse 45% 35% at 0% 50%, var(--mesh-3), transparent 50%);
+  background-attachment: fixed;
+  transition: background-color 0.25s ease, color 0.2s ease;
+}
+
+body.grain::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* --- Portfolio patterns --- */
+.ui-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--fg-soft);
+}
+
+.ui-eyebrow::before {
+  content: "";
+  height: 1px;
+  width: 1.75rem;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, transparent, var(--violet-soft), color-mix(in srgb, var(--violet-soft) 80%, transparent));
+}
+
+.ui-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-surface {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--violet);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.8rem 1.5rem;
+  box-shadow: var(--shadow-glow);
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.2s ease;
+}
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--violet) 88%, #000);
+  box-shadow: 0 14px 36px -8px var(--violet-glow);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Prefer fine-pointer hover effects only (no sticky hover on mobile) */
+@media (hover: hover) and (pointer: fine) {
+  .card-lift:hover {
+    transform: translateY(-4px);
+  }
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--bg-panel);
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.8rem 1.4rem;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-secondary:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  color: var(--fg-soft);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.9rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  color: var(--fg);
+}
+
+.font-display {
+  font-family: var(--font-instrument), "Instrument Serif", Georgia, serif;
+}
+
+:where(a, button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--violet) 28%, transparent);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--violet) 45%, transparent);
+  }
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-5 {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-6 {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-8 {
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.fade-in {
+  animation-name: fade-in;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--violet-soft) 40%, transparent);
+  color: var(--fg);
+}
+
+textarea {
+  field-sizing: content;
+}
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@media (min-width: 1024px) {
+  .preview-sticky {
+    position: sticky;
+    top: 5.5rem;
+    align-self: start;
+    max-height: calc(100dvh - 6.5rem);
+    overflow-y: auto;
+  }
+}
+
+/* Floating mobile dock */
+.tab-dock {
+  border-radius: 1.35rem;
+  background: var(--dock-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* Safe top for notched devices under sticky nav */
+@supports (padding: env(safe-area-inset-top)) {
+  .app-nav {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Prevent iOS rubber-band content under fixed dock looking clipped */
+@media (max-width: 639px) {
+  .btn-primary,
+  .btn-secondary {
+    min-height: 48px;
+  }
+}
+
+/* App chrome helpers for dark/light without rewriting every file */
+.app-nav {
+  background: var(--nav-bg);
+  border-color: var(--border);
+}
+
+.app-input {
+  background: var(--input-bg);
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.app-input::placeholder {
+  color: var(--fg-soft);
+}
+
+.app-card-shell {
+  background: var(--bg-panel);
+  border-color: var(--border);
+}
+
+/* Solid elevated card for dark mode (avoid near-invisible white/4 overlays) */
+.ui-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-card-inset {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+}
+
+@media print {
+  nav[aria-label="Primary"],
+  body.grain::before {
+    display: none !important;
+  }
+}
