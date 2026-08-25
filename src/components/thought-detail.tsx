@@ -188,12 +188,9 @@ export function ThoughtDetail({ slug }: { slug: string }) {
 
   return (
     <PageShell wide className="pb-24 pt-6 sm:pt-8 lg:pt-12">
-      {/* Mobile: meta then card. Desktop: card | meta side-by-side */}
+      {/* Mobile: card first. Desktop: card | meta */}
       <div className="grid gap-8 lg:grid-cols-12 lg:items-start lg:gap-12">
-        {/* Meta first on mobile */}
-        <div className="lg:order-2 lg:col-span-5 xl:col-span-5">{meta}</div>
-
-        <div className="relative lg:order-1 lg:col-span-7 xl:col-span-7">
+        <div className="relative lg:col-span-7 xl:col-span-7">
           <div className="pointer-events-none absolute -left-[9999px] top-0" aria-hidden>
             <ThoughtCard
               ref={cardRef}
@@ -219,6 +216,8 @@ export function ThoughtDetail({ slug }: { slug: string }) {
             />
           </div>
         </div>
+
+        <div className="lg:col-span-5 xl:col-span-5">{meta}</div>
       </div>
     </PageShell>
   );

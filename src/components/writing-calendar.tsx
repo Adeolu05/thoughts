@@ -72,7 +72,7 @@ export function WritingCalendar({
                 onClick={() =>
                   onSelect(isSelected ? null : cell.key)
                 }
-                className={`flex h-9 items-center justify-center rounded-xl text-xs transition ${
+                className={`flex h-11 min-h-[44px] items-center justify-center rounded-xl text-xs transition ${
                   !cell.inMonth
                     ? "text-slate-300 dark:text-slate-600"
                     : isSelected

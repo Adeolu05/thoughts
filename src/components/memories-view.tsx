@@ -166,12 +166,12 @@ export function MemoriesView() {
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-violet-600/20 placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 disabled:opacity-60 dark:border-white/15 dark:bg-[#14121f] dark:text-slate-50 dark:placeholder:text-slate-500"
               />
             </label>
-            <div className="flex gap-2">
+            <div className="flex w-full gap-2 sm:w-auto">
               {user ? (
                 <button
                   type="button"
                   onClick={() => void signOut()}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-500 transition hover:text-rose-600 dark:border-white/10 dark:text-slate-400"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-500 transition hover:text-rose-600 dark:border-white/10 dark:text-slate-400 sm:w-auto"
                 >
                   Sign out
                 </button>
@@ -179,7 +179,7 @@ export function MemoriesView() {
                 <button
                   type="button"
                   onClick={() => void sendMagicLink()}
-                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                  className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 sm:w-auto"
                 >
                   Send link
                 </button>
@@ -206,41 +206,45 @@ export function MemoriesView() {
         </div>
       ) : (
         <>
-          <section className="mt-8 grid grid-cols-3 gap-3 sm:mt-10 sm:grid-cols-5 sm:gap-4 lg:max-w-3xl">
-            <SoftStat
-              label="Moments"
-              value={String(all.length)}
-              glow="rgba(124, 58, 237, 0.12)"
-            />
-            <SoftStat
-              label="Shared"
-              value={String(all.filter((e) => e.isPublished).length)}
-              glow="rgba(219, 39, 119, 0.1)"
-            />
-            <SoftStat
-              label="This month"
-              value={String(
-                all.filter((e) => {
-                  const d = new Date(e.createdAt);
-                  const n = new Date();
-                  return (
-                    d.getMonth() === n.getMonth() &&
-                    d.getFullYear() === n.getFullYear()
-                  );
-                }).length
-              )}
-              glow="rgba(16, 185, 129, 0.1)"
-            />
-            <SoftStat
-              label="Streak"
-              value={String(streaks.current)}
-              glow="rgba(251, 191, 36, 0.14)"
-            />
-            <SoftStat
-              label="Best streak"
-              value={String(streaks.longest)}
-              glow="rgba(56, 189, 248, 0.12)"
-            />
+          <section className="mt-8 space-y-3 sm:mt-10 sm:grid sm:grid-cols-5 sm:gap-4 sm:space-y-0 lg:max-w-3xl">
+            <div className="grid grid-cols-3 gap-3 sm:contents">
+              <SoftStat
+                label="Moments"
+                value={String(all.length)}
+                glow="rgba(124, 58, 237, 0.12)"
+              />
+              <SoftStat
+                label="Shared"
+                value={String(all.filter((e) => e.isPublished).length)}
+                glow="rgba(219, 39, 119, 0.1)"
+              />
+              <SoftStat
+                label="This month"
+                value={String(
+                  all.filter((e) => {
+                    const d = new Date(e.createdAt);
+                    const n = new Date();
+                    return (
+                      d.getMonth() === n.getMonth() &&
+                      d.getFullYear() === n.getFullYear()
+                    );
+                  }).length
+                )}
+                glow="rgba(16, 185, 129, 0.1)"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:contents">
+              <SoftStat
+                label="Streak"
+                value={String(streaks.current)}
+                glow="rgba(251, 191, 36, 0.14)"
+              />
+              <SoftStat
+                label="Best streak"
+                value={String(streaks.longest)}
+                glow="rgba(56, 189, 248, 0.12)"
+              />
+            </div>
           </section>
 
           <WritingCalendar

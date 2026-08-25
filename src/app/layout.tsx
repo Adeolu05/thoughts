@@ -100,7 +100,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <Nav />
-          <main className="flex flex-1 flex-col pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
+          <main className="flex flex-1 flex-col pb-[calc(8rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
             {children}
           </main>
           <BrandFooter />

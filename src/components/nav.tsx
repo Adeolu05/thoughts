@@ -76,7 +76,7 @@ export function Nav() {
             /* Desktop only - mobile uses bottom Write tab as primary CTA */
             <Link
               href="/create"
-              className="btn-primary hidden !px-5 !py-2.5 sm:inline-flex"
+              className="btn-primary !hidden sm:!inline-flex !px-5 !py-2.5"
             >
               Write a thought
             </Link>
