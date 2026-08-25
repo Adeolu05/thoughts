@@ -120,23 +120,32 @@ export function AtmosphereStrip({
       <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
         Quick atmosphere
       </p>
-      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {GRADIENTS.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            title={g.name}
-            onClick={() => onGradientChange(g.id)}
-            className={`h-11 w-11 shrink-0 rounded-xl transition-all ${
-              gradient === g.id
-                ? "scale-105 shadow-md ring-2 ring-violet-500 ring-offset-2 ring-offset-[#faf9ff] dark:ring-offset-[#0c0a14]"
-                : "ring-1 ring-slate-900/10 dark:ring-white/10"
-            }`}
-            style={{ background: g.css }}
-          >
-            <span className="sr-only">{g.name}</span>
-          </button>
-        ))}
+      <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max gap-2 px-1.5 py-1">
+          {GRADIENTS.map((g) => {
+            const selected = gradient === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                title={g.name}
+                onClick={() => onGradientChange(g.id)}
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 transition-all ${
+                  selected
+                    ? "border-violet-500"
+                    : "border-transparent"
+                }`}
+              >
+                <span
+                  className="h-10 w-10 rounded-[0.7rem] ring-1 ring-slate-900/10 dark:ring-white/10"
+                  style={{ background: g.css }}
+                  aria-hidden
+                />
+                <span className="sr-only">{g.name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
