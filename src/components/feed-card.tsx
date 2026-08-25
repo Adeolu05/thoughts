@@ -130,6 +130,11 @@ export function FeedCard({
               {entry.mood}
             </span>
           ) : null}
+          {entry.tags[0] ? (
+            <span className="hidden max-w-[5.5rem] truncate rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-400/25 sm:inline-block">
+              #{entry.tags[0]}
+            </span>
+          ) : null}
         </span>
         <span className="shrink-0 font-semibold text-violet-600 dark:text-violet-400">
           Open →

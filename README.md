@@ -6,7 +6,7 @@ A personal digital journal for beautiful, shareable reflections - inspired by Sp
 
 **Platform:** [thoughts.dpeluola.com](https://thoughts.dpeluola.com)  
 **Owner:** David Peluola  
-**Status:** Phase One (MVP)
+**Status:** Phase Two (archive, sync, streaks)
 
 ---
 
@@ -18,27 +18,31 @@ The long-term ambition is a living memory system culminating in **Thoughts Wrapp
 
 ---
 
-## What's built (Phase One)
+## What's built
 
 | Feature | Status |
 | --- | --- |
 | Beautiful journal editor | ✅ |
+| Edit existing thoughts | ✅ |
 | Typography engine (Lyric / Editorial / Classic) | ✅ |
 | Gradient / atmosphere engine (8 themes) | ✅ |
 | 9:16 image export (WhatsApp / Stories ready) | ✅ |
 | Native share sheet | ✅ |
+| Export / share stay private until Publish | ✅ |
 | Voice-to-text (Web Speech API) | ✅ |
 | AI titles + mood detection (SpaceXAI / heuristic fallback) | ✅ |
 | Public feed + single thought pages | ✅ |
 | Local archive + Memories / on-this-day | ✅ |
+| Writing streaks + month calendar | ✅ |
 | Mobile-first UI | ✅ |
 | Dark / light theme | ✅ |
-| Supabase Auth + cloud sync (optional) | ✅ |
+| Supabase Auth + cloud sync (optional, merge-safe) | ✅ |
+| Search + tags (archive filter + editor) | ✅ |
 
 ### Coming next
 
-- **Phase Three:** Spotify integration, animations, search, tags  
-- **Wrapped:** Year-end retrospective, heatmaps, emotion trends  
+- **Still open:** collections, pinned memories, dark-mode scheduling  
+- **Later:** Spotify, Thoughts Wrapped (heatmaps, emotion trends)
 
 ---
 
@@ -56,7 +60,7 @@ The long-term ambition is a living memory system culminating in **Thoughts Wrapp
 | Auth / DB | Supabase (optional; falls back to localStorage) |
 | Deploy | Vercel |
 
-Without Supabase env vars, the app still works entirely on **localStorage**. With them, entries sync through Supabase Auth + RLS.
+Without Supabase env vars, the app still works entirely on **localStorage**. With them, signed-in entries sync through Supabase Auth + RLS. Local unpublished thoughts are never overwritten by the public feed; they upload when you sign in.
 
 ---
 
@@ -124,8 +128,9 @@ Open → Capture (type / paste / speak)
 | --- | --- |
 | `/` | Public feed + vision |
 | `/create` | Private editor |
+| `/create?slug=…` | Edit an existing thought |
 | `/thought/[slug]` | Single journal card |
-| `/memories` | Archive, stats, on-this-day |
+| `/memories` | Archive, search, streaks, calendar |
 | `/api/ai` | Title + mood enrichment |
 
 ---

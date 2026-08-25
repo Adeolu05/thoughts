@@ -10,7 +10,7 @@ Owner: David Peluola
 
 Platform: thoughts.dpeluola.com
 
-Status: Planning → Phase One shipped (local MVP)
+Status: Phase Two in progress (archive, sync, streaks)
 
 ---
 
@@ -89,20 +89,22 @@ Publishing streaks · Returning users · Entries shared externally · Voice-to-t
 
 # Feature Set
 
-## Version 1 (shipped in this repo)
+## Version 1 (shipped)
 
-- Beautiful journal editor
-- Image export (9:16 PNG)
+- Beautiful journal editor (with edit in place)
+- Image export (9:16 PNG) without auto-publishing
 - Theme engine + gradient engine
-- Local archive (Supabase-ready schema)
+- Local archive, merge-safe with optional Supabase Auth + RLS
 - Public journal feed (client)
 - Voice-to-text
-- AI titles + mood detection
+- AI titles + mood detection + tags
 - Memory resurfacing (on this day)
+- Search + tag filter
+- Writing streaks + month calendar
 
-## Version 2
+## Version 2 (remaining)
 
-Mood tracking UI · Search · Collections · Writing streaks · Dark mode scheduling · Calendar · Pinned memories · Supabase sync
+Mood tracking UI · Collections · Dark mode scheduling · Pinned memories
 
 ## Version 3
 

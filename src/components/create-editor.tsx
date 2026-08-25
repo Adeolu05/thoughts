@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ThoughtCard } from "@/components/thought-card";
 import { ThemePicker } from "@/components/theme-picker";
 import { AtmosphereStrip, StudioRail } from "@/components/studio-rail";
 import { PhotoPicker } from "@/components/photo-picker";
 import { PageShell } from "@/components/page-shell";
+import { TagInput } from "@/components/tag-input";
 import { IconKeyboard, IconMic, IconSpark } from "@/components/icons";
 import { useSpeech } from "@/hooks/use-speech";
 import { exportCardToPng, shareCard } from "@/lib/export-image";
@@ -18,7 +19,17 @@ import {
   hasMeaningfulDraft,
   saveDraft,
 } from "@/lib/draft";
-import { createId, saveEntryEverywhere, slugify } from "@/lib/storage";
+import { addTag } from "@/lib/search";
+import {
+  createId,
+  getEntries,
+  isCloudConfigured,
+  loadEntryBySlug,
+  saveEntryEverywhere,
+  slugify,
+  type SaveResult,
+} from "@/lib/storage";
+import { currentStreak, writtenDayKeys } from "@/lib/streaks";
 import type {
   DraftState,
   GradientId,
@@ -33,14 +44,30 @@ type DraftStatus = "idle" | "saving" | "saved" | "restored";
 
 const AUTOSAVE_MS = 700;
 
+function describeSave(base: string, result: SaveResult): string {
+  if (result.error) {
+    return `Saved on this device. Cloud sync failed: ${result.error}`;
+  }
+  if (result.destination === "local" && isCloudConfigured()) {
+    return `${base} on this device. Sign in on Memories to sync.`;
+  }
+  return base;
+}
+
 export function CreateEditor() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editSlug = searchParams.get("slug");
   const cardRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hydrated = useRef(false);
   const skipNextSave = useRef(false);
 
   const [step, setStep] = useState<Step>("write");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [wasPublished, setWasPublished] = useState(false);
+  const [streakCurrent, setStreakCurrent] = useState(0);
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [theme, setTheme] = useState<ThemeId>("lyric");
@@ -60,32 +87,64 @@ export function CreateEditor() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const t = window.setTimeout(() => {
-      const draft = getDraft();
-      if (hasMeaningfulDraft(draft) && draft) {
-        setContent(draft.content ?? "");
-        setTitle(draft.title ?? "");
-        setTheme(draft.theme ?? "lyric");
-        setGradient(draft.gradient ?? "midnight-muse");
-        setMood(draft.mood);
-        setTags(draft.tags ?? []);
-        setSource(draft.source ?? "typed");
-        setPhotoDataUrl(draft.photoDataUrl);
-        setStep(draft.step ?? "write");
-        setCreatedAt(draft.createdAt || new Date().toISOString());
-        setDraftUpdatedAt(draft.updatedAt);
-        setDraftStatus("restored");
-        skipNextSave.current = true;
-      }
-      hydrated.current = true;
-      setReady(true);
+      void (async () => {
+        setStreakCurrent(currentStreak(writtenDayKeys(getEntries())));
+
+        if (editSlug) {
+          const found = await loadEntryBySlug(editSlug);
+          if (cancelled) return;
+          if (found && !found.id.startsWith("demo-")) {
+            setContent(found.content);
+            setTitle(found.title ?? "");
+            setTheme(found.theme);
+            setGradient(found.gradient);
+            setMood(found.mood);
+            setTags(found.tags ?? []);
+            setSource(found.source);
+            setPhotoDataUrl(found.photoDataUrl ?? found.imageDataUrl);
+            setCreatedAt(found.createdAt);
+            setEditingId(found.id);
+            setEditingSlug(found.slug);
+            setWasPublished(found.isPublished);
+            setStep("write");
+            skipNextSave.current = true;
+            hydrated.current = true;
+            setReady(true);
+            return;
+          }
+        }
+
+        const draft = getDraft();
+        if (hasMeaningfulDraft(draft) && draft) {
+          setContent(draft.content ?? "");
+          setTitle(draft.title ?? "");
+          setTheme(draft.theme ?? "lyric");
+          setGradient(draft.gradient ?? "midnight-muse");
+          setMood(draft.mood);
+          setTags(draft.tags ?? []);
+          setSource(draft.source ?? "typed");
+          setPhotoDataUrl(draft.photoDataUrl);
+          setStep(draft.step ?? "write");
+          setCreatedAt(draft.createdAt || new Date().toISOString());
+          setDraftUpdatedAt(draft.updatedAt);
+          setDraftStatus("restored");
+          skipNextSave.current = true;
+        }
+        hydrated.current = true;
+        setReady(true);
+      })();
     }, 0);
 
-    return () => window.clearTimeout(t);
-  }, []);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [editSlug]);
 
   useEffect(() => {
-    if (!hydrated.current || !ready) return;
+    if (!hydrated.current || !ready || editingId) return;
     if (skipNextSave.current) {
       skipNextSave.current = false;
       return;
@@ -144,6 +203,7 @@ export function CreateEditor() {
     step,
     createdAt,
     ready,
+    editingId,
   ]);
 
   const onTranscript = useCallback((text: string, isFinal: boolean) => {
@@ -185,8 +245,16 @@ export function CreateEditor() {
       const data = await res.json();
       if (data.title) setTitle(data.title);
       if (data.mood) setMood(data.mood as Mood);
-      if (data.tags) setTags(data.tags);
-      setStatus("Title & mood suggested");
+      if (Array.isArray(data.tags)) {
+        setTags((prev) => {
+          let next = [...prev];
+          for (const tag of data.tags as string[]) {
+            next = addTag(next, tag);
+          }
+          return next;
+        });
+      }
+      setStatus("Title, mood & tags suggested");
     } catch {
       setStatus("Could not enrich. You can title it yourself");
     } finally {
@@ -196,8 +264,8 @@ export function CreateEditor() {
 
   function buildEntry(isPublished: boolean): JournalEntry {
     return {
-      id: createId(),
-      slug: slugify(title || content.slice(0, 40) || "moment"),
+      id: editingId ?? createId(),
+      slug: editingSlug ?? slugify(title || content.slice(0, 40) || "moment"),
       createdAt,
       content: content.trim(),
       title: title.trim() || undefined,
@@ -212,12 +280,12 @@ export function CreateEditor() {
   }
 
   async function finishAndClear(message: string, entry: JournalEntry) {
-    const saved = await saveEntryEverywhere(entry);
+    const result = await saveEntryEverywhere(entry);
     clearDraft();
     setDraftStatus("idle");
     setDraftUpdatedAt(null);
-    setStatus(message);
-    router.push(`/thought/${saved.slug}`);
+    setStatus(describeSave(message, result));
+    router.push(`/thought/${result.entry.slug}`);
   }
 
   async function handleSave(publish: boolean) {
@@ -244,7 +312,10 @@ export function CreateEditor() {
     setStatus(null);
     try {
       await exportCardToPng(cardRef.current, `thought-${Date.now()}.png`);
-      await finishAndClear("Exported PNG · archived", buildEntry(true));
+      await finishAndClear(
+        "Exported PNG · archived privately",
+        buildEntry(editingId ? wasPublished : false)
+      );
     } catch (e) {
       console.error(e);
       setStatus("Export failed. Try another browser");
@@ -260,11 +331,11 @@ export function CreateEditor() {
       const result = await shareCard(cardRef.current, title || "My Thought");
       await finishAndClear(
         result === "shared"
-          ? "Shared · archived"
+          ? "Shared · archived privately"
           : result === "copied"
-            ? "Copied image · archived"
-            : "Downloaded · ready for Stories",
-        buildEntry(true)
+            ? "Copied image · archived privately"
+            : "Downloaded · archived privately",
+        buildEntry(editingId ? wasPublished : false)
       );
     } catch {
       setStatus("Share cancelled");
@@ -274,6 +345,10 @@ export function CreateEditor() {
   }
 
   function discardDraft() {
+    if (editingSlug) {
+      router.push(`/thought/${editingSlug}`);
+      return;
+    }
     if (!confirm("Discard this draft? This cannot be undone.")) return;
     clearDraft();
     setContent("");
@@ -464,7 +539,21 @@ export function CreateEditor() {
         </div>
 
         <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 sm:gap-3">
-          {draftLabel && (
+          {streakCurrent > 0 && (
+            <span className="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-200">
+              {streakCurrent} day streak
+            </span>
+          )}
+          {editingSlug && (
+            <button
+              type="button"
+              onClick={() => router.push(`/thought/${editingSlug}`)}
+              className="text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Cancel
+            </button>
+          )}
+          {draftLabel && !editingId && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/[0.06] bg-white px-3 py-1.5 text-slate-600 shadow-sm dark:border-white/12 dark:bg-[#1c1930] dark:text-slate-300">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
@@ -478,7 +567,8 @@ export function CreateEditor() {
               </span>
             </span>
           )}
-          {(draftStatus === "saved" || draftStatus === "restored") && (
+          {(draftStatus === "saved" || draftStatus === "restored") &&
+            !editingId && (
             <button
               type="button"
               onClick={discardDraft}
@@ -531,10 +621,12 @@ export function CreateEditor() {
             <section className="space-y-4 animate-in fade-in">
               <div>
                 <h1 className="font-display text-3xl tracking-tight text-slate-900 dark:text-slate-50 xl:text-4xl">
-                  Capture a thought
+                  {editingId ? "Edit this thought" : "Capture a thought"}
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Auto-saves as you go · one photo optional.
+                  {editingId
+                    ? "Same moment, updated words and style."
+                    : "Auto-saves as you go · one photo optional."}
                 </p>
               </div>
 
@@ -597,7 +689,7 @@ export function CreateEditor() {
                 </p>
               )}
 
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/12 dark:bg-[#1c1930]">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/12 dark:bg-[#1c1930]">
                 <label className="block">
                   <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Title
@@ -615,14 +707,11 @@ export function CreateEditor() {
                     <span className="capitalize text-violet-700 dark:text-violet-300">
                       {mood}
                     </span>
-                    {tags.length > 0 && (
-                      <span className="text-slate-400 dark:text-slate-500">
-                        {" "}
-                        · {tags.map((x) => `#${x}`).join(" ")}
-                      </span>
-                    )}
                   </p>
                 )}
+                <div className="border-t border-slate-100 pt-3 dark:border-white/10">
+                  <TagInput tags={tags} onChange={setTags} />
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -688,7 +777,7 @@ export function CreateEditor() {
                   Save & export
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Download a 9:16 PNG for Stories, or publish to your feed.
+                  Download a 9:16 PNG for Stories. Publishing to the feed is separate.
                 </p>
               </div>
 
@@ -702,8 +791,8 @@ export function CreateEditor() {
                 Download for Stories
               </button>
               <p className="text-center text-[11px] text-slate-500 dark:text-slate-400">
-                PNG · 9:16 · WhatsApp · Instagram · TikTok · also archives this
-                thought
+                PNG · 9:16 · WhatsApp · Instagram · TikTok · saved privately
+                unless you publish
               </p>
 
               <button
@@ -788,10 +877,12 @@ export function CreateEditor() {
           <section className="space-y-4 animate-in fade-in sm:space-y-5">
             <div>
               <h1 className="font-display text-3xl tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-                Capture a thought
+                {editingId ? "Edit this thought" : "Capture a thought"}
               </h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Auto-saves · optional photo · under a minute.
+                {editingId
+                  ? "Same moment, updated words and style."
+                  : "Auto-saves · optional photo · under a minute."}
               </p>
             </div>
 
@@ -856,26 +947,27 @@ export function CreateEditor() {
               </span>
             </div>
 
-            {(title || mood) && (
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/12 dark:bg-[#1c1930]">
-                <label className="block">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Title
-                  </span>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="mt-1 w-full bg-transparent text-sm text-slate-900 outline-none dark:text-slate-50"
-                    placeholder="Optional title"
-                  />
-                </label>
-                {mood && (
-                  <p className="text-xs capitalize text-violet-700 dark:text-violet-300">
-                    {mood}
-                  </p>
-                )}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/12 dark:bg-[#1c1930]">
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Title
+                </span>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="mt-1 w-full bg-transparent text-sm text-slate-900 outline-none dark:text-slate-50"
+                  placeholder="Optional title"
+                />
+              </label>
+              {mood && (
+                <p className="text-xs capitalize text-violet-700 dark:text-violet-300">
+                  {mood}
+                </p>
+              )}
+              <div className="border-t border-slate-100 pt-3 dark:border-white/10">
+                <TagInput tags={tags} onChange={setTags} compact />
               </div>
-            )}
+            </div>
 
             <button
               type="button"
@@ -931,7 +1023,7 @@ export function CreateEditor() {
                 Save & export
               </h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Download for Stories, or publish to your feed.
+                Download for Stories, or publish to your feed. Export stays private.
               </p>
             </div>
             <div className="flex justify-center">

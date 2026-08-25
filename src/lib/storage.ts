@@ -22,12 +22,20 @@ type ThoughtRow = {
   image_data_url: string | null;
 };
 
+export type SaveDestination = "local" | "cloud";
+
+export type SaveResult = {
+  entry: JournalEntry;
+  destination: SaveDestination;
+  error?: string;
+};
+
 function isBrowser() {
   return typeof window !== "undefined";
 }
 
 function sortEntries(entries: JournalEntry[]): JournalEntry[] {
-  return entries.sort(
+  return [...entries].sort(
     (a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -71,6 +79,24 @@ function toRow(entry: JournalEntry): Omit<ThoughtRow, "user_id"> {
   };
 }
 
+/** Union by id. `prefer` wins when the same thought exists on both sides. */
+export function mergeById(
+  local: JournalEntry[],
+  remote: JournalEntry[],
+  prefer: "local" | "remote"
+): JournalEntry[] {
+  const map = new Map<string, JournalEntry>();
+  const first = prefer === "local" ? remote : local;
+  const second = prefer === "local" ? local : remote;
+  for (const entry of first) map.set(entry.id, entry);
+  for (const entry of second) map.set(entry.id, entry);
+  return sortEntries([...map.values()]);
+}
+
+export function isCloudConfigured(): boolean {
+  return getSupabaseClient() !== null;
+}
+
 export function getEntries(): JournalEntry[] {
   if (!isBrowser()) return [];
   try {
@@ -90,32 +116,47 @@ export function getPublishedEntries(): JournalEntry[] {
 export async function loadEntries(options?: {
   publishedOnly?: boolean;
 }): Promise<JournalEntry[]> {
+  const local = getEntries();
   const supabase = getSupabaseClient();
-  if (supabase) {
+
+  if (!supabase) {
+    return options?.publishedOnly ? getPublishedEntries() : local;
+  }
+
+  if (options?.publishedOnly) {
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from(TABLE)
         .select("*")
+        .eq("is_published", true)
         .order("created_at", { ascending: false });
-
-      if (options?.publishedOnly) {
-        query = query.eq("is_published", true);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
-
-      const entries = sortEntries(((data ?? []) as ThoughtRow[]).map(toEntry));
-      if (!options?.publishedOnly) {
-        saveEntriesLocal(entries);
-      }
-      return entries;
+      return sortEntries(((data ?? []) as ThoughtRow[]).map(toEntry));
     } catch {
-      /* fall through to localStorage */
+      return getPublishedEntries();
     }
   }
 
-  return options?.publishedOnly ? getPublishedEntries() : getEntries();
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      return local;
+    }
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("user_id", auth.user.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    const remote = ((data ?? []) as ThoughtRow[]).map(toEntry);
+    const merged = mergeById(local, remote, "remote");
+    saveEntriesLocal(merged);
+    return merged;
+  } catch {
+    return local;
+  }
 }
 
 export async function loadPublishedEntries(): Promise<JournalEntry[]> {
@@ -129,22 +170,25 @@ export function getEntryBySlug(slug: string): JournalEntry | undefined {
 export async function loadEntryBySlug(
   slug: string
 ): Promise<JournalEntry | undefined> {
+  const local = getEntryBySlug(slug);
+  if (local) return local;
+
   const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .select("*")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) return toEntry(data as ThoughtRow);
-    } catch {
-      /* fall through to localStorage */
-    }
+  if (!supabase) return undefined;
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return toEntry(data as ThoughtRow);
+  } catch {
+    /* fall through */
   }
 
-  return getEntryBySlug(slug);
+  return undefined;
 }
 
 export function getEntryById(id: string): JournalEntry | undefined {
@@ -170,15 +214,18 @@ export function saveEntry(entry: JournalEntry): JournalEntry {
 
 export async function saveEntryEverywhere(
   entry: JournalEntry
-): Promise<JournalEntry> {
-  saveEntry(entry);
-
+): Promise<SaveResult> {
+  const savedLocal = saveEntry(entry);
   const supabase = getSupabaseClient();
-  if (!supabase) return entry;
+  if (!supabase) {
+    return { entry: savedLocal, destination: "local" };
+  }
 
   try {
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return entry;
+    if (!auth.user) {
+      return { entry: savedLocal, destination: "local" };
+    }
 
     const row = { ...toRow(entry), user_id: auth.user.id };
     const table = supabase.from(TABLE) as unknown as {
@@ -187,7 +234,10 @@ export async function saveEntryEverywhere(
         options: { onConflict: string }
       ) => {
         select: (columns: string) => {
-          single: () => Promise<{ data: ThoughtRow | null; error: Error | null }>;
+          single: () => Promise<{
+            data: ThoughtRow | null;
+            error: { message: string } | null;
+          }>;
         };
       };
     };
@@ -196,13 +246,46 @@ export async function saveEntryEverywhere(
       .select("*")
       .single();
 
-    if (error) throw error;
+    if (error) {
+      return {
+        entry: savedLocal,
+        destination: "local",
+        error: error.message,
+      };
+    }
+
     const saved = toEntry(data as ThoughtRow);
     saveEntry(saved);
-    return saved;
-  } catch {
-    return entry;
+    return { entry: saved, destination: "cloud" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Cloud sync failed";
+    return { entry: savedLocal, destination: "local", error: message };
   }
+}
+
+/** Upload this device's archive after sign-in so local-only thoughts reach the cloud. */
+export async function syncLocalToCloud(): Promise<{
+  uploaded: number;
+  error?: string;
+}> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { uploaded: 0 };
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { uploaded: 0 };
+
+  const local = getEntries();
+  let uploaded = 0;
+
+  for (const entry of local) {
+    const result = await saveEntryEverywhere(entry);
+    if (result.error) {
+      return { uploaded, error: result.error };
+    }
+    if (result.destination === "cloud") uploaded += 1;
+  }
+
+  return { uploaded };
 }
 
 export function deleteEntry(id: string): void {

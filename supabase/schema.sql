@@ -51,6 +51,9 @@ create index if not exists thoughts_user_created_at_idx
 create index if not exists thoughts_published_created_at_idx
   on public.thoughts (is_published, created_at desc);
 
+create index if not exists thoughts_tags_gin_idx
+  on public.thoughts using gin (tags);
+
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql

@@ -144,6 +144,14 @@ export function ThoughtDetail({ slug }: { slug: string }) {
       ) : null}
 
       <div className="mt-8 flex max-w-md flex-col gap-2 sm:gap-2.5">
+        {!entry.id.startsWith("demo-") && (
+          <Link
+            href={`/create?slug=${encodeURIComponent(entry.slug)}`}
+            className="rounded-2xl border border-slate-200 bg-white py-3 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/12 dark:bg-[#1c1930] dark:text-slate-200 dark:hover:bg-white/[0.08] sm:py-3.5"
+          >
+            Edit thought
+          </Link>
+        )}
         <button
           type="button"
           disabled={busy}

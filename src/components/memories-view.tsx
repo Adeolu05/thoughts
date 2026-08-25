@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { FeedCard } from "@/components/feed-card";
 import { PageShell } from "@/components/page-shell";
+import { WritingCalendar } from "@/components/writing-calendar";
+import { IconSearch } from "@/components/icons";
 import { getMoodAura } from "@/lib/design-system";
+import { collectTags, searchEntries } from "@/lib/search";
 import { getSupabaseClient } from "@/lib/supabase";
-import { loadEntries, loadOnThisDay } from "@/lib/storage";
+import { loadEntries, loadOnThisDay, syncLocalToCloud } from "@/lib/storage";
+import { summarizeStreaks, toDayKey } from "@/lib/streaks";
 import type { JournalEntry } from "@/lib/types";
 
 export function MemoriesView() {
@@ -17,6 +21,14 @@ export function MemoriesView() {
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [authStatus, setAuthStatus] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const [cal, setCal] = useState(() => {
+    const n = new Date();
+    return { year: n.getFullYear(), month: n.getMonth() };
+  });
+  const syncedRef = useRef(false);
 
   async function refreshArchive() {
     const [dayMemories, entries] = await Promise.all([
@@ -31,10 +43,27 @@ export function MemoriesView() {
     let active = true;
     const supabase = getSupabaseClient();
 
+    async function syncIfNeeded(signedIn: boolean) {
+      if (!signedIn || syncedRef.current) return;
+      syncedRef.current = true;
+      const result = await syncLocalToCloud();
+      if (!active) return;
+      if (result.error) {
+        setAuthStatus(`Saved locally. Cloud sync failed: ${result.error}`);
+      } else if (result.uploaded > 0) {
+        setAuthStatus(
+          result.uploaded === 1
+            ? "Synced 1 thought to the cloud."
+            : `Synced ${result.uploaded} thoughts to the cloud.`
+        );
+      }
+    }
+
     async function load() {
       if (supabase) {
         const { data } = await supabase.auth.getUser();
         if (active) setUser(data.user ?? null);
+        await syncIfNeeded(Boolean(data.user));
       }
       const [dayMemories, entries] = await Promise.all([
         loadOnThisDay(),
@@ -48,10 +77,16 @@ export function MemoriesView() {
 
     void load();
 
-    const authListener = supabase?.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      void refreshArchive();
-    });
+    const authListener = supabase?.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        if (!session?.user) syncedRef.current = false;
+        void (async () => {
+          await syncIfNeeded(Boolean(session?.user));
+          if (active) await refreshArchive();
+        })();
+      }
+    );
 
     return () => {
       active = false;
@@ -90,8 +125,17 @@ export function MemoriesView() {
 
   const moods = tally(all.map((e) => e.mood).filter(Boolean) as string[]);
   const themes = tally(all.map((e) => e.theme));
+  const tagCounts = useMemo(() => collectTags(all), [all]);
+  const streaks = useMemo(() => summarizeStreaks(all), [all]);
+  const filtered = useMemo(() => {
+    const searched = searchEntries(all, query, activeTag);
+    if (!activeDay) return searched;
+    return searched.filter((e) => toDayKey(e.createdAt) === activeDay);
+  }, [all, query, activeTag, activeDay]);
   const topMood = moods[0]?.[0];
   const aura = getMoodAura(topMood);
+  const hasFilters =
+    query.trim().length > 0 || Boolean(activeTag) || Boolean(activeDay);
 
   return (
     <PageShell wide className="pb-24 pt-10 sm:pt-12">
@@ -162,7 +206,7 @@ export function MemoriesView() {
         </div>
       ) : (
         <>
-          <section className="mt-8 grid grid-cols-3 gap-3 sm:mt-10 sm:gap-4 lg:max-w-xl">
+          <section className="mt-8 grid grid-cols-3 gap-3 sm:mt-10 sm:grid-cols-5 sm:gap-4 lg:max-w-3xl">
             <SoftStat
               label="Moments"
               value={String(all.length)}
@@ -187,7 +231,37 @@ export function MemoriesView() {
               )}
               glow="rgba(16, 185, 129, 0.1)"
             />
+            <SoftStat
+              label="Streak"
+              value={String(streaks.current)}
+              glow="rgba(251, 191, 36, 0.14)"
+            />
+            <SoftStat
+              label="Best streak"
+              value={String(streaks.longest)}
+              glow="rgba(56, 189, 248, 0.12)"
+            />
           </section>
+
+          <WritingCalendar
+            year={cal.year}
+            month={cal.month}
+            written={streaks.written}
+            selected={activeDay}
+            onSelect={setActiveDay}
+            onPrevMonth={() =>
+              setCal((c) => {
+                const d = new Date(c.year, c.month - 1, 1);
+                return { year: d.getFullYear(), month: d.getMonth() };
+              })
+            }
+            onNextMonth={() =>
+              setCal((c) => {
+                const d = new Date(c.year, c.month + 1, 1);
+                return { year: d.getFullYear(), month: d.getMonth() };
+              })
+            }
+          />
 
           {(moods.length > 0 || themes.length > 0) && (
             <section className="mt-8 grid gap-4 sm:mt-10 md:grid-cols-2 md:gap-5">
@@ -284,9 +358,89 @@ export function MemoriesView() {
                 Full archive
               </h2>
               {all.length > 0 && (
-                <span className="text-xs text-slate-400 dark:text-slate-500">{all.length} total</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  {hasFilters
+                    ? `${filtered.length} of ${all.length}`
+                    : `${all.length} total`}
+                </span>
               )}
             </div>
+
+            {all.length > 0 && (
+              <div className="mb-5 space-y-3">
+                <label className="relative block max-w-xl">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                    <IconSearch />
+                  </span>
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search title, words, mood, or tags…"
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none ring-violet-600/20 placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 dark:border-white/12 dark:bg-[#1c1930] dark:text-slate-50 dark:placeholder:text-slate-500"
+                  />
+                </label>
+
+                {tagCounts.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTag(null)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        !activeTag
+                          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                          : "bg-slate-100 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-white/[0.06] dark:text-slate-300 dark:ring-white/10 dark:hover:bg-white/[0.1]"
+                      }`}
+                    >
+                      All tags
+                    </button>
+                    {tagCounts.map(([tag, count]) => {
+                      const selected = activeTag === tag;
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() =>
+                            setActiveTag(selected ? null : tag)
+                          }
+                          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                            selected
+                              ? "bg-violet-600 text-white shadow-sm shadow-violet-600/20"
+                              : "bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/25 dark:hover:bg-violet-500/25"
+                          }`}
+                        >
+                          #{tag}{" "}
+                          <span
+                            className={
+                              selected
+                                ? "text-violet-200"
+                                : "text-violet-400 dark:text-violet-300"
+                            }
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setActiveTag(null);
+                      setActiveDay(null);
+                    }}
+                    className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-violet-700 hover:underline dark:text-slate-400 dark:hover:text-violet-300"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+
             {all.length === 0 ? (
               <div className="rounded-[1.75rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1930] px-4 py-12 text-center sm:py-14">
                 <p className="text-sm text-slate-600 dark:text-slate-300">Your archive is quiet.</p>
@@ -297,9 +451,26 @@ export function MemoriesView() {
                   Write your first thought
                 </Link>
               </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-[1.75rem] border border-slate-200 bg-white px-4 py-12 text-center dark:border-white/10 dark:bg-[#1c1930] sm:py-14">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  No thoughts match that search.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setActiveTag(null);
+                    setActiveDay(null);
+                  }}
+                  className="mt-4 text-sm font-semibold text-violet-700 dark:text-violet-300"
+                >
+                  Clear filters
+                </button>
+              </div>
             ) : (
               <div className="columns-1 gap-4 sm:columns-2 sm:gap-5 lg:columns-3">
-                {all.map((e) => (
+                {filtered.map((e) => (
                   <div key={e.id} className="mb-4 break-inside-avoid sm:mb-5">
                     <FeedCard entry={e} />
                   </div>

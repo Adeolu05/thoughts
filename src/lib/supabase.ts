@@ -57,6 +57,7 @@ export type Database = {
           photo_data_url?: string | null;
           image_data_url?: string | null;
         };
+        Relationships: [];
       };
     };
   };
